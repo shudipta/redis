@@ -1,17 +1,42 @@
 #!/bin/bash
 set -xeou pipefail
 
+GOPATH=$(go env GOPATH)
+REPO_ROOT=$GOPATH/src/github.com/kubedb/redis
+
+source "$REPO_ROOT/hack/libbuild/common/lib.sh"
+source "$REPO_ROOT/hack/libbuild/common/kubedb_image.sh"
+
 DOCKER_REGISTRY=${DOCKER_REGISTRY:-kubedb}
 IMG=redis
 SUFFIX=v1
-PATCH="4.0.6-$SUFFIX"
 TAG="4.0-$SUFFIX"
 ALT_TAG="4-$SUFFIX"
+PATCH=4.0.6
+DIR=4.0
 
-docker pull "$DOCKER_REGISTRY/$IMG:$PATCH"
+build() {
+  pushd "$REPO_ROOT/hack/docker/redis/$DIR"
 
-docker tag "$DOCKER_REGISTRY/$IMG:$PATCH" "$DOCKER_REGISTRY/$IMG:$TAG"
-docker push "$DOCKER_REGISTRY/$IMG:$TAG"
+  local cmd="docker build -t $DOCKER_REGISTRY/$IMG:$TAG ."
+  echo $cmd; $cmd
 
-docker tag "$DOCKER_REGISTRY/$IMG:$PATCH" "$DOCKER_REGISTRY/$IMG:$ALT_TAG"
-docker push "$DOCKER_REGISTRY/$IMG:$ALT_TAG"
+  cmd="docker tag $DOCKER_REGISTRY/$IMG:$TAG $DOCKER_REGISTRY/$IMG:$ALT_TAG"
+  echo $cmd; $cmd
+
+  popd
+}
+
+push() {
+  pushd "$REPO_ROOT/hack/docker/redis/$DIR"
+
+  local cmd="docker push $DOCKER_REGISTRY/$IMG:$TAG"
+  echo $cmd; $cmd
+
+  cmd="docker push $DOCKER_REGISTRY/$IMG:$ALT_TAG"
+  echo $cmd; $cmd
+
+  popd
+}
+
+binary_repo $@

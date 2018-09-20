@@ -27,6 +27,8 @@ var (
 	ExporterTag        string
 	SelfHostedOperator bool
 	DBVersion          string
+
+	Cluster bool
 )
 
 func (f *Framework) isApiSvcReady(apiSvcName string) error {

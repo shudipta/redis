@@ -22,7 +22,7 @@ func (i *Invocation) RedisVersion() *api.RedisVersion {
 				Image: fmt.Sprintf("%s/redis:%s", DockerRegistry, DBVersion),
 			},
 			Exporter: api.RedisVersionExporter{
-				Image: fmt.Sprintf("%s/operator:%s", DockerRegistry, ExporterTag),
+				Image: fmt.Sprintf("%s/redis-exporter:%s", DockerRegistry, ExporterTag),
 			},
 		},
 	}

@@ -21,6 +21,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 )
@@ -29,6 +30,8 @@ type Controller struct {
 	amc.Config
 	*amc.Controller
 
+	// Rest restConfig
+	restConfig *restclient.Config
 	// Prometheus client
 	promClient pcm.MonitoringV1Interface
 	// Event Recorder
@@ -45,6 +48,7 @@ type Controller struct {
 var _ amc.Deleter = &Controller{}
 
 func New(
+	restConfig *restclient.Config,
 	client kubernetes.Interface,
 	apiExtKubeClient crd_cs.ApiextensionsV1beta1Interface,
 	extClient cs.KubedbV1alpha1Interface,
@@ -59,6 +63,7 @@ func New(
 			ApiExtKubeClient: apiExtKubeClient,
 			DynamicClient:    dynamicClient,
 		},
+		restConfig: restConfig,
 		Config:     opt,
 		promClient: promClient,
 		recorder:   eventer.NewEventRecorder(client, "Redis operator"),

@@ -47,6 +47,20 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			)
 			return kutil.VerbUnchanged, err
 		}
+
+		if redis.Spec.Mode == api.RedisModeCluster {
+			if err := c.configureCluster(redis, statefulSet); err != nil {
+				c.recorder.Eventf(
+					redis,
+					core.EventTypeWarning,
+					eventer.EventReasonFailedToStart,
+					`Failed to configure cluster. Reason: %v`,
+					err,
+				)
+				return kutil.VerbUnchanged, err
+			}
+		}
+
 		c.recorder.Eventf(
 			redis,
 			core.EventTypeNormal,
@@ -97,7 +111,11 @@ func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kut
 		in.Annotations = redis.Spec.PodTemplate.Controller.Annotations
 		core_util.EnsureOwnerReference(&in.ObjectMeta, ref)
 
-		in.Spec.Replicas = types.Int32P(1)
+		if redis.Spec.Mode == api.RedisModeStandalone {
+			in.Spec.Replicas = types.Int32P(1)
+		} else if redis.Spec.Mode == api.RedisModeCluster {
+			in.Spec.Replicas = types.Int32P((*redis.Spec.Cluster.Master) * ((*redis.Spec.Cluster.Replicas) + 1))
+		}
 		in.Spec.ServiceName = c.GoverningService
 		in.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: redis.OffshootSelectors(),
@@ -108,20 +126,44 @@ func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kut
 			in.Spec.Template.Spec.InitContainers,
 			redis.Spec.PodTemplate.Spec.InitContainers,
 		)
-		in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
-			Name:            api.ResourceSingularRedis,
-			Image:           redisVersion.Spec.DB.Image,
-			ImagePullPolicy: core.PullIfNotPresent,
-			Args:            redis.Spec.PodTemplate.Spec.Args,
-			Ports: []core.ContainerPort{
+		var (
+			ports = []core.ContainerPort{
 				{
 					Name:          "db",
 					ContainerPort: 6379,
 					Protocol:      core.ProtocolTCP,
 				},
+			}
+		)
+		if redis.Spec.Mode == api.RedisModeCluster {
+			ports = append(ports, core.ContainerPort{
+				Name:          "gossip",
+				ContainerPort: 16379,
+			})
+		}
+		in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
+			Name:            api.ResourceSingularRedis,
+			Image:           redisVersion.Spec.DB.Image,
+			ImagePullPolicy: core.PullIfNotPresent,
+			Args:            redis.Spec.PodTemplate.Spec.Args,
+			Ports:           ports,
+			Resources:       redis.Spec.PodTemplate.Spec.Resources,
+			Env: []core.EnvVar{
+				{
+					Name: "POD_IP",
+					ValueFrom: &core.EnvVarSource{
+						FieldRef: &core.ObjectFieldSelector{
+							FieldPath: "status.podIP",
+						},
+					},
+				},
+				{
+					Name:  "REDIS_CONFIG",
+					Value: filepath.Join(CONFIG_MOUNT_PATH, RedisConfigRelativePath),
+				},
 			},
-			Resources: redis.Spec.PodTemplate.Spec.Resources,
 		})
+
 		if redis.GetMonitoringVendor() == mona.VendorPrometheus {
 			in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
 				Name: "exporter",
@@ -157,6 +199,7 @@ func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kut
 		in.Spec.UpdateStrategy = redis.Spec.UpdateStrategy
 		in = upsertUserEnv(in, redis)
 		in = upsertCustomConfig(in, redis)
+
 		return in
 	})
 }
@@ -239,30 +282,47 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 	if redis.Spec.ConfigSource != nil {
 		for i, container := range statefulSet.Spec.Template.Spec.Containers {
 			if container.Name == api.ResourceSingularRedis {
-				configVolumeMount := core.VolumeMount{
-					Name:      "custom-config",
-					MountPath: CONFIG_MOUNT_PATH,
+				fixIpMountPath := filepath.Join(CONFIG_MOUNT_PATH, "fix-ip")
+
+				configVolumeMount := []core.VolumeMount{
+					{
+						Name:      "custom-config",
+						MountPath: CONFIG_MOUNT_PATH,
+					},
+					{
+						Name:      "fix-ip",
+						MountPath: fixIpMountPath,
+					},
 				}
+
 				volumeMounts := container.VolumeMounts
-				volumeMounts = core_util.UpsertVolumeMount(volumeMounts, configVolumeMount)
+				volumeMounts = core_util.UpsertVolumeMount(volumeMounts, configVolumeMount...)
 				statefulSet.Spec.Template.Spec.Containers[i].VolumeMounts = volumeMounts
 
-				configVolume := core.Volume{
-					Name:         "custom-config",
-					VolumeSource: *redis.Spec.ConfigSource,
+				configVolume := []core.Volume{
+					{
+						Name:         "custom-config",
+						VolumeSource: *redis.Spec.ConfigSource,
+					},
+					{
+						Name: "fix-ip",
+						VolumeSource: core.VolumeSource{
+							ConfigMap: &core.ConfigMapVolumeSource{
+								LocalObjectReference: core.LocalObjectReference{
+									Name: redis.Name + "-fixip",
+								},
+								DefaultMode: types.Int32P(493),
+							},
+						},
+					},
 				}
 
 				volumes := statefulSet.Spec.Template.Spec.Volumes
-				volumes = core_util.UpsertVolume(volumes, configVolume)
+				volumes = core_util.UpsertVolume(volumes, configVolume...)
 				statefulSet.Spec.Template.Spec.Volumes = volumes
 
-				// send custom config file path as argument
-				configPath := filepath.Join(CONFIG_MOUNT_PATH, "redis.conf")
-				args := statefulSet.Spec.Template.Spec.Containers[i].Args
-				if len(args) == 0 || args[len(args)-1] != configPath {
-					args = append(args, configPath)
-				}
-				statefulSet.Spec.Template.Spec.Containers[i].Args = args
+				fixIP := filepath.Join(fixIpMountPath, RedisFixIPScriptRelativePath)
+				statefulSet.Spec.Template.Spec.Containers[i].Command = []string{"sh", "-c", fixIP}
 				break
 			}
 		}
