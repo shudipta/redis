@@ -82,20 +82,32 @@ func (c *Controller) create(redis *api.Redis) error {
 	}
 
 	// create Governing Service
-	governingService, err := c.createRedisGoverningService(redis)
-	if err != nil {
-		if ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis); rerr == nil {
-			c.recorder.Eventf(
-				ref,
-				core.EventTypeWarning,
-				eventer.EventReasonFailedToCreate,
-				`Failed to create Service: "%v". Reason: %v`,
-				governingService,
-				err,
-			)
-		}
+	governingService := c.GoverningService
+	if err := c.CreateGoverningService(governingService, redis.Namespace); err != nil {
+		c.recorder.Eventf(
+			redis,
+			core.EventTypeWarning,
+			eventer.EventReasonFailedToCreate,
+			`Failed to create Service: "%v". Reason: %v`,
+			governingService,
+			err,
+		)
+		return err
 	}
-	c.GoverningService = governingService
+	//governingService, err := c.createRedisGoverningService(redis)
+	//if err != nil {
+	//	if ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis); rerr == nil {
+	//		c.recorder.Eventf(
+	//			ref,
+	//			core.EventTypeWarning,
+	//			eventer.EventReasonFailedToCreate,
+	//			`Failed to create Service: "%v". Reason: %v`,
+	//			governingService,
+	//			err,
+	//		)
+	//	}
+	//}
+	//c.GoverningService = governingService
 
 	// ensure ConfigMap for redis configuration file (i.e. redis.conf)
 	if redis.Spec.Mode == api.RedisModeCluster {

@@ -125,22 +125,11 @@ func ValidateRedis(client kubernetes.Interface, extClient kubedbv1alpha1.KubedbV
 		return err
 	}
 
-	if redis.Spec.Mode != api.RedisModeStandalone && redis.Spec.Mode != api.RedisModeCluster {
-		return fmt.Errorf(`spec.mode "%v" invalid. Value must be one of "%v" or "%v"`,
-			redis.Spec.Mode, api.RedisModeStandalone, api.RedisModeCluster)
-	}
-
-	if redis.Spec.Mode == api.RedisModeCluster && redis.Spec.Cluster == nil {
-		return fmt.Errorf(`spec.cluster "%v" invalid. It is required.`, redis.Spec.Cluster)
-	}
-
-	if redis.Spec.Mode == api.RedisModeCluster &&
-		(redis.Spec.Cluster.Replicas == nil || *redis.Spec.Cluster.Replicas < 0) {
+	if redis.Spec.Mode == api.RedisModeCluster && *redis.Spec.Cluster.Replicas < 0 {
 		return fmt.Errorf(`spec.cluster.replicationFactor "%v" invalid. Value must be >= 0`, redis.Spec.Cluster.Master)
 	}
 
-	if redis.Spec.Mode == api.RedisModeCluster &&
-		(redis.Spec.Cluster.Master == nil || *redis.Spec.Cluster.Master < 3) {
+	if redis.Spec.Mode == api.RedisModeCluster && *redis.Spec.Cluster.Master < 3 {
 		return fmt.Errorf(`spec.cluster.master "%v" invalid. Value must be >= 3`, redis.Spec.Cluster.Master)
 	}
 
