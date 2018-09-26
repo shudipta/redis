@@ -1,5 +1,5 @@
-hash: f85444e331478d26403e63d004e4737c724370cce9537bf4be4f5ac146f55a33
-updated: 2018-09-20T11:11:03.365524707-07:00
+hash: 4a71d74547cf9bbf3733b72356532555c2b85b39dc220788141f790b294268cf
+updated: 2018-09-26T02:15:47.306812674-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -215,7 +215,7 @@ imports:
 - name: github.com/emicklei/go-restful-swagger12
   version: dcef7f55730566d41eae5db10e7d6981829720f6
 - name: github.com/evanphx/json-patch
-  version: 94e38aa1586e8a6c8a75770bddf5ff84c48a106b
+  version: afac545df32f2287a079e2dfb7ba2745a643747e
 - name: github.com/fatih/structs
   version: 4966fc68f5b7593aafa6cbbba2d65ec6e1416047
 - name: github.com/ghodss/yaml
@@ -326,20 +326,28 @@ imports:
 - name: github.com/json-iterator/go
   version: 1624edc4454b8682399def8740d46db5e4362ba4
 - name: github.com/kubedb/apimachinery
-  version: 7760fb61e363cdc939e78708046db6a4d92ca77c
+  version: 9892d181eab72086376f4b5aaac3fba4665bde2c
   subpackages:
+  - apis
+  - apis/catalog
+  - apis/catalog/v1alpha1
   - apis/kubedb
   - apis/kubedb/v1alpha1
   - client/clientset/versioned
   - client/clientset/versioned/fake
   - client/clientset/versioned/scheme
+  - client/clientset/versioned/typed/catalog/v1alpha1
+  - client/clientset/versioned/typed/catalog/v1alpha1/fake
   - client/clientset/versioned/typed/kubedb/v1alpha1
   - client/clientset/versioned/typed/kubedb/v1alpha1/fake
   - client/clientset/versioned/typed/kubedb/v1alpha1/util
   - client/informers/externalversions
+  - client/informers/externalversions/catalog
+  - client/informers/externalversions/catalog/v1alpha1
   - client/informers/externalversions/internalinterfaces
   - client/informers/externalversions/kubedb
   - client/informers/externalversions/kubedb/v1alpha1
+  - client/listers/catalog/v1alpha1
   - client/listers/kubedb/v1alpha1
   - pkg/admission
   - pkg/admission/dormantdatabase
@@ -493,8 +501,9 @@ imports:
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
-  - unix
   - windows
+- name: golang.org/x/sys/unix
+  version: 95c6576299259db960f6c5b9b69ea52422860fce
 - name: golang.org/x/text
   version: b19bf474d317b857955b12035d2c5acb57ce8b01
   subpackages:
@@ -525,7 +534,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/api
-  version: 19ff8768a5c0b8e46ea281065664787eefc24121
+  version: e5ba110cb6cd042d05ea6ea2ce9dd13198c6387a
   subpackages:
   - gensupport
   - googleapi
