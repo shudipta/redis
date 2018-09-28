@@ -50,8 +50,8 @@ while test $# -gt 0; do
 done
 
 dbversions=(
-#  4.0.6
-#  4.0.11
+  4.0.6
+  4.0.11
   4.0
 )
 

@@ -1,4 +1,4 @@
-FROM redis:4.0.11-alpine
+FROM redis:4.0.6-alpine
 
 RUN set -x \
    && apk add --update --no-cache ruby ruby-rdoc \
