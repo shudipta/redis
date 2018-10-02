@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/appscode/go/log"
 	"github.com/appscode/go/types"
@@ -11,10 +12,12 @@ import (
 	core_util "github.com/appscode/kutil/core/v1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/apimachinery/pkg/eventer"
+	"github.com/pkg/errors"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/reference"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
@@ -25,56 +28,152 @@ const (
 )
 
 func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error) {
-	if err := c.checkStatefulSet(redis); err != nil {
-		return kutil.VerbUnchanged, err
-	}
-
-	// Create statefulSet for Redis database
-	statefulSet, vt, err := c.createStatefulSet(redis)
-	if err != nil {
-		return kutil.VerbUnchanged, err
-	}
-
-	// Check StatefulSet Pod status
-	if vt != kutil.VerbUnchanged {
-		if err := c.checkStatefulSetPodStatus(statefulSet); err != nil {
-			c.recorder.Eventf(
-				redis,
-				core.EventTypeWarning,
-				eventer.EventReasonFailedToStart,
-				`Failed to CreateOrPatch StatefulSet. Reason: %v`,
-				err,
-			)
+	fn := func(statefulSetName string, removeSlave bool) (kutil.VerbType, error) {
+		err := c.checkStatefulSet(statefulSetName, redis.Name, redis.Namespace)
+		if err != nil {
 			return kutil.VerbUnchanged, err
 		}
 
-		if redis.Spec.Mode == api.RedisModeCluster {
-			if err := c.configureCluster(redis, statefulSet); err != nil {
+		// Create statefulSet for Redis database
+		statefulSet, vt, err := c.createStatefulSet(statefulSetName, redis, removeSlave)
+		if err != nil {
+			return kutil.VerbUnchanged, err
+		}
+
+		// Check StatefulSet Pod status
+		if vt != kutil.VerbUnchanged {
+			if err := c.checkStatefulSetPodStatus(statefulSet); err != nil {
 				c.recorder.Eventf(
 					redis,
 					core.EventTypeWarning,
 					eventer.EventReasonFailedToStart,
-					`Failed to configure cluster. Reason: %v`,
+					`Failed to CreateOrPatch StatefulSet. Reason: %v`,
 					err,
 				)
 				return kutil.VerbUnchanged, err
 			}
+
+			c.recorder.Eventf(
+				redis,
+				core.EventTypeNormal,
+				eventer.EventReasonSuccessful,
+				"Successfully %v StatefulSet",
+				vt,
+			)
 		}
 
-		c.recorder.Eventf(
-			redis,
-			core.EventTypeNormal,
-			eventer.EventReasonSuccessful,
-			"Successfully %v StatefulSet",
-			vt,
-		)
+		return vt, nil
 	}
+
+	var (
+		vt  kutil.VerbType
+		err error
+	)
+
+	if redis.Spec.Mode == api.RedisModeStandalone {
+		vt, err = fn(redis.OffshootName(), false)
+		if err != nil {
+			return vt, err
+		}
+	} else {
+		for i := 0; i < int(*redis.Spec.Cluster.Master); i++ {
+			statefulSetName := fmt.Sprintf("%s-shard%d", redis.OffshootName(), i)
+			vt, err = fn(statefulSetName, false)
+			if err != nil {
+				return vt, err
+			}
+		}
+
+		// wait until the cluster is configured with the current specification
+		if err := c.waitUntilRedisClusterConfigured(redis); err != nil {
+			return vt, errors.New("failed to configure required cluster")
+		}
+
+		// delete the statefulSets whose corresponding masters are deleted from the cluster
+		statefulSets, err := c.Client.AppsV1().StatefulSets(redis.Namespace).List(metav1.ListOptions{
+			LabelSelector: labels.Set{
+				api.LabelDatabaseKind: api.ResourceKindRedis,
+				api.LabelDatabaseName: redis.Name,
+			}.String(),
+		})
+		if err != nil {
+			return vt, err
+		}
+
+		if len(statefulSets.Items) > int(*redis.Spec.Cluster.Master) {
+			for _, sts := range statefulSets.Items {
+				stsIndex, _ := strconv.Atoi(sts.Name[len(fmt.Sprintf("%s-shard", redis.Name)):])
+				if stsIndex >= int(*redis.Spec.Cluster.Master) {
+					err = c.Client.AppsV1().
+						StatefulSets(sts.Namespace).
+						Delete(sts.Name, &metav1.DeleteOptions{})
+					if err != nil {
+						return vt, err
+					}
+				}
+			}
+		}
+
+		// update the the statefulSets with reduced replicas as some of their slaves have been removed
+		for i := 0; i < int(*redis.Spec.Cluster.Master); i++ {
+			statefulSetName := fmt.Sprintf("%s-shard%d", redis.OffshootName(), i)
+			vt, err = fn(statefulSetName, true)
+			if err != nil {
+				return vt, err
+			}
+		}
+	}
+
+	//if err := c.checkStatefulSet(redis); err != nil {
+	//	return kutil.VerbUnchanged, err
+	//}
+	//
+	//// Create statefulSet for Redis database
+	//statefulSet, vt, err := c.createStatefulSet(redis)
+	//if err != nil {
+	//	return kutil.VerbUnchanged, err
+	//}
+	//
+	//// Check StatefulSet Pod status
+	//if vt != kutil.VerbUnchanged {
+	//	if err := c.checkStatefulSetPodStatus(statefulSet); err != nil {
+	//		c.recorder.Eventf(
+	//			redis,
+	//			core.EventTypeWarning,
+	//			eventer.EventReasonFailedToStart,
+	//			`Failed to CreateOrPatch StatefulSet. Reason: %v`,
+	//			err,
+	//		)
+	//		return kutil.VerbUnchanged, err
+	//	}
+	//
+	//	if redis.Spec.Mode == api.RedisModeCluster {
+	//		if err := c.configureCluster(redis, statefulSet); err != nil {
+	//			c.recorder.Eventf(
+	//				redis,
+	//				core.EventTypeWarning,
+	//				eventer.EventReasonFailedToStart,
+	//				`Failed to configure cluster. Reason: %v`,
+	//				err,
+	//			)
+	//			return kutil.VerbUnchanged, err
+	//		}
+	//	}
+	//
+	//	c.recorder.Eventf(
+	//		redis,
+	//		core.EventTypeNormal,
+	//		eventer.EventReasonSuccessful,
+	//		"Successfully %v StatefulSet",
+	//		vt,
+	//	)
+	//}
 	return vt, nil
 }
 
-func (c *Controller) checkStatefulSet(redis *api.Redis) error {
+func (c *Controller) checkStatefulSet(statefulSetName, redisName, statefulSetNamespace string) error {
 	// SatatefulSet for Redis database
-	statefulSet, err := c.Client.AppsV1().StatefulSets(redis.Namespace).Get(redis.OffshootName(), metav1.GetOptions{})
+	statefulSet, err := c.Client.AppsV1().StatefulSets(statefulSetNamespace).Get(statefulSetName, metav1.GetOptions{})
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			return nil
@@ -83,16 +182,16 @@ func (c *Controller) checkStatefulSet(redis *api.Redis) error {
 	}
 
 	if statefulSet.Labels[api.LabelDatabaseKind] != api.ResourceKindRedis ||
-		statefulSet.Labels[api.LabelDatabaseName] != redis.Name {
-		return fmt.Errorf(`Intended statefulSet "%v" already exists`, redis.OffshootName())
+		statefulSet.Labels[api.LabelDatabaseName] != redisName {
+		return fmt.Errorf(`intended statefulSet "%v" already exists`, statefulSetName)
 	}
 
 	return nil
 }
 
-func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kutil.VerbType, error) {
+func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis, removeSlave bool) (*apps.StatefulSet, kutil.VerbType, error) {
 	statefulSetMeta := metav1.ObjectMeta{
-		Name:      redis.OffshootName(),
+		Name:      statefulSetName,
 		Namespace: redis.Namespace,
 	}
 
@@ -114,7 +213,14 @@ func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kut
 		if redis.Spec.Mode == api.RedisModeStandalone {
 			in.Spec.Replicas = types.Int32P(1)
 		} else if redis.Spec.Mode == api.RedisModeCluster {
-			in.Spec.Replicas = types.Int32P((*redis.Spec.Cluster.Master) * ((*redis.Spec.Cluster.Replicas) + 1))
+			// while creating, in.Spec.Replicas is 'nil'
+			if in.Spec.Replicas == nil ||
+				// while adding slave(s), (*in.Spec.Replicas < *redis.Spec.Cluster.Replicas + 1) is true
+				*in.Spec.Replicas < *redis.Spec.Cluster.Replicas+1 ||
+				// removeSlave is true only after deleting slave node(s) in the stage of configuring redis cluster
+				removeSlave {
+				in.Spec.Replicas = types.Int32P(*redis.Spec.Cluster.Replicas + 1)
+			}
 		}
 		in.Spec.ServiceName = c.GoverningService
 		in.Spec.Selector = &metav1.LabelSelector{

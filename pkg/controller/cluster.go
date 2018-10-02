@@ -1,9 +1,13 @@
 package controller
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/appscode/go/log"
+	"github.com/appscode/go/sets"
+	"github.com/appscode/kutil"
+	rd "github.com/go-redis/redis"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/redis/pkg/exec"
 	"github.com/pkg/errors"
@@ -11,7 +15,45 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
+
+func (c *Controller) waitUntilRedisClusterConfigured(redis *api.Redis) error {
+	return wait.PollImmediate(kutil.RetryInterval, kutil.ReadinessTimeout, func() (bool, error) {
+		podName := fmt.Sprintf("%s-shard%d-%d", redis.Name, 0, 0)
+
+		pod, err := c.Client.CoreV1().Pods(redis.Namespace).Get(podName, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+
+		rdClient := rd.NewClient(&rd.Options{
+			Addr: fmt.Sprintf("%s:6379", pod.Status.PodIP),
+		})
+
+		slots, err := rdClient.ClusterSlots().Result()
+		if err != nil {
+			return false, nil
+		}
+
+		//total := 0
+		masterIds := sets.NewString()
+		checkReplcas := true
+		for _, slot := range slots {
+			//total += slot.End - slot.Start + 1
+			masterIds.Insert(slot.Nodes[0].Id)
+			checkReplcas = checkReplcas && (len(slot.Nodes)-1 == int(*redis.Spec.Cluster.Replicas))
+		}
+
+		// TODO: need to check whether total slots number is equal to 16384 or not
+		//if total != 16384 || masterIds.Len() != int(*redis.Spec.Cluster.Master) || !checkReplcas {
+		if masterIds.Len() != int(*redis.Spec.Cluster.Master) || !checkReplcas {
+			return false, nil
+		}
+
+		return true, nil
+	})
+}
 
 func (c *Controller) configureCluster(redis *api.Redis, statefulset *apps.StatefulSet) error {
 	pods, err := c.Client.CoreV1().Pods(redis.Namespace).List(metav1.ListOptions{

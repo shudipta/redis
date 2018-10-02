@@ -1,22 +1,35 @@
-package redis_helper
+package configure_cluster
 
 import (
-	"github.com/appscode/go/log"
 	"fmt"
 	"regexp"
-	"strings"
 	"strconv"
-	"github.com/tamalsaha/go-oneliners"
+	"strings"
+
+	"github.com/appscode/go/log"
 	"github.com/appscode/go/sets"
 )
 
-func RunRedisHelper() {
-	config := getConfigFromEnv()
+func ConfigureRedisCluster() {
+	//config := getConfigFromEnv()
+	//_ = getConfigFromEnv()
 
-	config.waitUntillRedisServersToBeReady()
-	config.configureClusterState()
+	//config.waitUntillRedisServersToBeReady()
+	//config.configureClusterState()
+
+	getKeysInSlot("172.17.0.5", "3168")
 
 	select {}
+}
+
+func getKeysInSlot(host, slot string) {
+	cmd := NewCmdWithDefaultOptions()
+	key, err := cmd.Run("redis-cli", []string{"-c", "-h", host, "cluster", "getkeysinslot", slot, "1"}...)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(strings.TrimSpace(key))
 }
 
 func getIPByHostName(host string) string {
@@ -134,9 +147,9 @@ func (c Config) waitUntillRedisServersToBeReady() {
 
 func processNodesConf(nodesConf string) map[string]*RedisNode {
 	var (
-		slotRange []string
+		slotRange  []string
 		start, end int
-		nds map[string]*RedisNode
+		nds        map[string]*RedisNode
 	)
 
 	nodes := strings.Split(nodesConf, "\n")
@@ -147,8 +160,8 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 
 		if strings.Contains(parts[2], "master") {
 			nd := RedisNode{
-				Id: parts[0],
-				Ip: strings.Split(parts[1], ":")[0],
+				Id:   parts[0],
+				Ip:   strings.Split(parts[1], ":")[0],
 				Port: 6379,
 				Role: "master",
 				Down: false,
@@ -160,11 +173,15 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 			for j := 8; j < len(parts); j++ {
 				slotRange = strings.Split(parts[j], "-")
 				start, _ = strconv.Atoi(slotRange[0])
-				end, _ = strconv.Atoi(slotRange[1])
+				if len(slotRange) == 1 {
+					end = start
+				} else {
+					end, _ = strconv.Atoi(slotRange[1])
+				}
 
 				nd.SlotStart = append(nd.SlotStart, start)
 				nd.SlotEnd = append(nd.SlotEnd, end)
-				nd.SlotsCnt += (end - start)
+				nd.SlotsCnt += (end - start) + 1
 			}
 			nd.Slaves = []*RedisNode{}
 
@@ -178,8 +195,8 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 
 		if strings.Contains(parts[2], "slave") {
 			nd := RedisNode{
-				Id: parts[0],
-				Ip: strings.Split(parts[1], ":")[0],
+				Id:   parts[0],
+				Ip:   strings.Split(parts[1], ":")[0],
 				Port: 6379,
 				Role: "slave",
 				Down: false,
@@ -195,9 +212,9 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 	for masterId, master := range nds {
 		fmt.Println(">>>>>>>> masterId =", masterId)
 		fmt.Println("=============================================================")
-		oneliners.PrettyJson(*master)
+		//oneliners.PrettyJson(*master)
 		for _, slave := range master.Slaves {
-			oneliners.PrettyJson(*slave)
+			//oneliners.PrettyJson(*slave)
 			fmt.Println(">>>>>>>> my masterId =", slave.Master.Id)
 		}
 	}
@@ -217,7 +234,7 @@ func (c Config) configureClusterState() {
 		if c.Cluster.Replicas < len(master.Slaves) {
 			var (
 				runningSlavesIps sets.String
-				found bool
+				found            bool
 			)
 
 			// find slaves' ips of this master those need to be keep alive
@@ -288,7 +305,7 @@ func (c Config) configureClusterState() {
 
 		// add slots to empty master(s)
 		var (
-			nonEmptyMastersId, emptyMastersId []string
+			nonEmptyMastersId, emptyMastersId                []string
 			slotsPerMaster, slotsRequired, allocatedSlotsCnt int
 		)
 
@@ -303,7 +320,7 @@ func (c Config) configureClusterState() {
 		slotsPerMaster = 16384 / c.Cluster.MasterCnt
 		for i, emptyMasterId := range emptyMastersId {
 			slotsRequired = slotsPerMaster
-			if i == len(emptyMastersId) - 1 {
+			if i == len(emptyMastersId)-1 {
 				// this change is only for last master that is being added
 				slotsRequired = 16384 - (slotsPerMaster * i)
 			}
@@ -317,7 +334,7 @@ func (c Config) configureClusterState() {
 					// that is being added.
 					if nds[masterId].SlotsCnt > slotsPerMaster {
 						slots := nds[masterId].SlotsCnt - slotsPerMaster
-						if slots > slotsRequired - allocatedSlotsCnt {
+						if slots > slotsRequired-allocatedSlotsCnt {
 							slots = slotsRequired - allocatedSlotsCnt
 						}
 
@@ -336,11 +353,11 @@ func (c Config) configureClusterState() {
 		for i := 0; i < c.Cluster.MasterCnt; i++ {
 			curMasterId := ""
 			curMasterIp := ""
-FindMaster:
+		FindMaster:
 			for j := 0; j <= c.Cluster.Replicas; j++ {
 				curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
 					c.BaseName, i, j, c.Namespace))
-				for masterId, _ := range nds {
+				for masterId := range nds {
 					if nds[masterId].Ip == curIp {
 						curMasterIp = curIp
 						curMasterId = nds[masterId].Id
@@ -353,7 +370,7 @@ FindMaster:
 				curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
 					c.BaseName, i, j, c.Namespace))
 				exists := false
-FindSlave:
+			FindSlave:
 				for _, master := range nds {
 					for _, slave := range master.Slaves {
 						if slave.Ip == curIp {

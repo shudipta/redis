@@ -1,10 +1,10 @@
-package redis_helper
+package configure_cluster
 
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"os/exec"
+	"strings"
 )
 
 type Cmd struct {

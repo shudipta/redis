@@ -1,12 +1,12 @@
-package redis_helper
+package configure_cluster
 
 import (
-	"strconv"
 	"os"
+	"strconv"
 )
 
 type Config struct {
-	BaseName string
+	BaseName  string
 	Namespace string
 
 	Cluster RedisCluster
@@ -14,20 +14,19 @@ type Config struct {
 
 type RedisCluster struct {
 	MasterCnt int
-	Replicas int
+	Replicas  int
 }
 
 type RedisNode struct {
 	SlotStart []int
-	SlotEnd []int
-	SlotsCnt int
+	SlotEnd   []int
+	SlotsCnt  int
 
-	Id string
-	Ip string
+	Id   string
+	Ip   string
 	Port int
 	Role string
 	Down bool
-
 
 	Master *RedisNode
 	Slaves []*RedisNode
@@ -43,11 +42,11 @@ func getConfigFromEnv() Config {
 	replicas, _ := strconv.Atoi(os.Getenv("REPLICAS"))
 
 	return Config{
-		BaseName: baseName,
+		BaseName:  baseName,
 		Namespace: namespace,
 		Cluster: RedisCluster{
 			MasterCnt: masterCnt,
-			Replicas: replicas,
+			Replicas:  replicas,
 		},
 	}
 }
