@@ -1,5 +1,5 @@
 hash: c7cce8b01da7db32d52f1f2a7bb599f9ef642d8e3e41293e00d190cb86d027bd
-updated: 2018-10-02T17:14:40.754854078-07:00
+updated: 2018-10-02T20:31:49.015347407-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -451,15 +451,13 @@ imports:
 - name: github.com/PuerkitoBio/urlesc
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
 - name: github.com/russross/blackfriday
-  version: 300106c228d52c8941d4b3de6054a6062a86dda3
+  version: 4048872b16cc0fc2c5fd9eacf0ed2c2fedaa0c8c
 - name: github.com/satori/go.uuid
   version: 879c5887cd475cd7864858769793b2ceb0d44feb
 - name: github.com/sergi/go-diff
   version: 97b2266dfe4bd4ea1b81a463322f04f8b724801e
   subpackages:
   - diffmatchpatch
-- name: github.com/shurcooL/sanitized_anchor_name
-  version: 10ef21a441db47d8b13ebcc5fd2310f636973c77
 - name: github.com/spf13/cobra
   version: ef82de70bb3f60c65fb8eebacbb2d122ef517385
   subpackages:
@@ -994,7 +992,7 @@ imports:
   - api/v1
   - osm
 - name: kmodules.xyz/offshoot-api
-  version: 2051fc8d05f53e96ac787faa30995278be6721d9
+  version: 19332f50ff9b7d684402d5a9e604815391f5900b
   repo: https://github.com/kmodules/offshoot-api.git
   vcs: git
   subpackages:
