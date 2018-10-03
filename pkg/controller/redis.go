@@ -165,6 +165,11 @@ func (c *Controller) create(redis *api.Redis) error {
 		return nil
 	}
 
+	_, err = c.ensureAppBinding(redis)
+	if err != nil {
+		log.Errorln(err)
+		return err
+	}
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	appcat_cs "kmodules.xyz/custom-resources/client/clientset/versioned/typed/appcatalog/v1alpha1"
 )
 
 var (
@@ -29,6 +30,7 @@ type OperatorConfig struct {
 	APIExtKubeClient crd_cs.ApiextensionsV1beta1Interface
 	DBClient         cs.Interface
 	DynamicClient    dynamic.Interface
+	AppCatalogClient appcat_cs.AppcatalogV1alpha1Interface
 	PromClient       pcm.MonitoringV1Interface
 	CronController   snapc.CronControllerInterface
 }
@@ -49,6 +51,7 @@ func (c *OperatorConfig) New() (*Controller, error) {
 		c.APIExtKubeClient,
 		c.DBClient,
 		c.DynamicClient,
+		c.AppCatalogClient,
 		c.PromClient,
 		c.Config,
 	)
