@@ -3,6 +3,8 @@ package configure_cluster
 import (
 	"os"
 	"strconv"
+	"io/ioutil"
+	"strings"
 )
 
 type Config struct {
@@ -34,10 +36,17 @@ type RedisNode struct {
 
 func getConfigFromEnv() Config {
 	baseName := os.Getenv("BASE_NAME")
-	namespace := os.Getenv("NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
+	namespace := ""
+	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		namespace = strings.TrimSpace(string(data))
+		if len(namespace) > 0 {
+			namespace = "default"
+		}
 	}
+	//namespace := os.Getenv("NAMESPACE")
+	//if namespace == "" {
+	//	namespace = "default"
+	//}
 	masterCnt, _ := strconv.Atoi(os.Getenv("MASTER_COUNT"))
 	replicas, _ := strconv.Atoi(os.Getenv("REPLICAS"))
 

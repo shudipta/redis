@@ -8,20 +8,21 @@ import (
 
 	"github.com/appscode/go/log"
 	"github.com/appscode/go/sets"
+	"github.com/tamalsaha/go-oneliners"
 )
 
 func ConfigureRedisCluster() {
-	//config := getConfigFromEnv()
+	config := getConfigFromEnv()
 	//_ = getConfigFromEnv()
-
-	//config.waitUntillRedisServersToBeReady()
-	//config.configureClusterState()
-
 	clusterGetKeysInSlot("172.17.0.5", "3168")
 	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.5"))
 	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.4"))
 	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.13"))
 	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.6"))
+
+	config.waitUntillRedisServersToBeReady()
+	config.configureClusterState()
+
 
 	select {}
 }
@@ -328,9 +329,9 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 	for masterId, master := range nds {
 		fmt.Println(">>>>>>>> masterId =", masterId)
 		fmt.Println("=============================================================")
-		//oneliners.PrettyJson(*master)
+		oneliners.PrettyJson(*master)
 		for _, slave := range master.Slaves {
-			//oneliners.PrettyJson(*slave)
+			oneliners.PrettyJson(*slave)
 			fmt.Println(">>>>>>>> my masterId =", slave.Master.Id)
 		}
 	}

@@ -84,14 +84,14 @@ func (c *Controller) ensureRedisConfig(redis *api.Redis) error {
 		redis.Spec.ConfigSource = rd.Spec.ConfigSource
 	}
 
-	data := map[string]string{
-		RedisFixIPScriptKey: fixIPConfig,
-	}
-	name := redis.Name + "-fixip"
-	_, err := c.createConfigMap(name, data, redis)
-	if err != nil {
-		return err
-	}
+	//data := map[string]string{
+	//	RedisFixIPScriptKey: fixIPConfig,
+	//}
+	//name := redis.Name + "-fixip"
+	//_, err := c.createConfigMap(name, data, redis)
+	//if err != nil {
+	//	return err
+	//}
 
 	return nil
 }

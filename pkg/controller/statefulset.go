@@ -89,7 +89,7 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			return vt, errors.New("failed to configure required cluster")
 		}
 
-		// delete the statefulSets whose corresponding masters are deleted from the cluster
+		// delete the statefulSets whose corresponding master nodes are deleted from the cluster
 		statefulSets, err := c.Client.AppsV1().StatefulSets(redis.Namespace).List(metav1.ListOptions{
 			LabelSelector: labels.Set{
 				api.LabelDatabaseKind: api.ResourceKindRedis,
@@ -102,7 +102,7 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 
 		if len(statefulSets.Items) > int(*redis.Spec.Cluster.Master) {
 			for _, sts := range statefulSets.Items {
-				stsIndex, _ := strconv.Atoi(sts.Name[len(fmt.Sprintf("%s-shard", redis.Name)):])
+				stsIndex, _ := strconv.Atoi(sts.Name[len(fmt.Sprintf("%s-shard", redis.OffshootName())):])
 				if stsIndex >= int(*redis.Spec.Cluster.Master) {
 					err = c.Client.AppsV1().
 						StatefulSets(sts.Namespace).
@@ -270,6 +270,28 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 			},
 		})
 
+		if redis.Spec.Mode == api.RedisModeCluster {
+			in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
+				Name:            "configure-cluster",
+				Image:           "alittleprogramming/cli-trib:configure-cluster",
+				ImagePullPolicy: core.PullIfNotPresent,
+				Env: []core.EnvVar{
+					{
+						Name: "BASE_NAME",
+						Value: redis.OffshootName(),
+					},
+					{
+						Name: "MASTER_COUNT",
+						Value: strconv.Itoa(int(*redis.Spec.Cluster.Master)),
+					},
+					{
+						Name:  "REPLICAS",
+						Value: strconv.Itoa(int(*redis.Spec.Cluster.Replicas)),
+					},
+				},
+			})
+		}
+
 		if redis.GetMonitoringVendor() == mona.VendorPrometheus {
 			in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
 				Name: "exporter",
@@ -388,17 +410,17 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 	if redis.Spec.ConfigSource != nil {
 		for i, container := range statefulSet.Spec.Template.Spec.Containers {
 			if container.Name == api.ResourceSingularRedis {
-				fixIpMountPath := filepath.Join(CONFIG_MOUNT_PATH, "fix-ip")
+				//fixIpMountPath := filepath.Join(CONFIG_MOUNT_PATH, "fix-ip")
 
 				configVolumeMount := []core.VolumeMount{
 					{
 						Name:      "custom-config",
 						MountPath: CONFIG_MOUNT_PATH,
 					},
-					{
-						Name:      "fix-ip",
-						MountPath: fixIpMountPath,
-					},
+					//{
+					//	Name:      "fix-ip",
+					//	MountPath: fixIpMountPath,
+					//},
 				}
 
 				volumeMounts := container.VolumeMounts
@@ -410,25 +432,33 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 						Name:         "custom-config",
 						VolumeSource: *redis.Spec.ConfigSource,
 					},
-					{
-						Name: "fix-ip",
-						VolumeSource: core.VolumeSource{
-							ConfigMap: &core.ConfigMapVolumeSource{
-								LocalObjectReference: core.LocalObjectReference{
-									Name: redis.Name + "-fixip",
-								},
-								DefaultMode: types.Int32P(493),
-							},
-						},
-					},
+					//{
+					//	Name: "fix-ip",
+					//	VolumeSource: core.VolumeSource{
+					//		ConfigMap: &core.ConfigMapVolumeSource{
+					//			LocalObjectReference: core.LocalObjectReference{
+					//				Name: redis.Name + "-fixip",
+					//			},
+					//			DefaultMode: types.Int32P(493),
+					//		},
+					//	},
+					//},
 				}
 
 				volumes := statefulSet.Spec.Template.Spec.Volumes
 				volumes = core_util.UpsertVolume(volumes, configVolume...)
 				statefulSet.Spec.Template.Spec.Volumes = volumes
 
-				fixIP := filepath.Join(fixIpMountPath, RedisFixIPScriptRelativePath)
-				statefulSet.Spec.Template.Spec.Containers[i].Command = []string{"sh", "-c", fixIP}
+				// send custom config file path as argument
+				configPath := filepath.Join(CONFIG_MOUNT_PATH, "redis.conf")
+				args := statefulSet.Spec.Template.Spec.Containers[i].Args
+				if len(args) == 0 || args[len(args)-1] != configPath {
+					args = append(args, configPath)
+				}
+				statefulSet.Spec.Template.Spec.Containers[i].Args = args
+
+				//fixIP := filepath.Join(fixIpMountPath, RedisFixIPScriptRelativePath)
+				//statefulSet.Spec.Template.Spec.Containers[i].Command = []string{"sh", "-c", fixIP}
 				break
 			}
 		}
