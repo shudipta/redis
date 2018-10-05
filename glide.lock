@@ -1,5 +1,5 @@
-hash: cbad1d2b5d5eb8f88903439faf531a873c609755091367d434b3bb539cf25159
-updated: 2018-10-03T05:01:39.83944278-07:00
+hash: d014479213434024beadbfb860eb75bd668627ead7551cf511ca72385ac515a6
+updated: 2018-10-05T02:14:06.862188438-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -34,7 +34,7 @@ imports:
   - admission/v1beta1
   - registry/admissionreview/v1beta1
 - name: github.com/appscode/kutil
-  version: ab4a23e683a5b1c2d7f23f49b30c0316de8c7f94
+  version: d6914a165524f1ec2009f2f7c5901ab4223ab3d5
   subpackages:
   - apiextensions/v1beta1
   - apps/v1
@@ -198,7 +198,7 @@ imports:
   subpackages:
   - md2man
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
   - spew
 - name: github.com/dgrijalva/jwt-go
@@ -232,7 +232,7 @@ imports:
 - name: github.com/go-openapi/swag
   version: f3f9494671f93fcff853e3c6e9e948b3eb71e590
 - name: github.com/go-redis/redis
-  version: 2e775399010b1d53683f8661e614f928b9cc0e2e
+  version: b834145dc7905182198b6525c07300c59d46344e
   subpackages:
   - internal
   - internal/consistenthash
@@ -327,7 +327,7 @@ imports:
 - name: github.com/json-iterator/go
   version: 1624edc4454b8682399def8740d46db5e4362ba4
 - name: github.com/kubedb/apimachinery
-  version: fcb7be1a808ff19e75c06a414a13503b1dbd5d8f
+  version: 233ace916ccf91dc14ef1abffe2d349e1c3e69ef
   subpackages:
   - apis
   - apis/authorization
@@ -601,7 +601,7 @@ imports:
 - name: gopkg.in/tomb.v1
   version: c131134a1947e9afd9cecfe11f4c6dff0732ae58
 - name: gopkg.in/yaml.v2
-  version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
+  version: 670d4cfef0544295bc27a114dbac37980d83185a
 - name: k8s.io/api
   version: 4e7be11eab3ffcfc1876898b8272df53785a9504
   subpackages:
@@ -986,16 +986,14 @@ imports:
   - pkg/util
   - pkg/util/proto
 - name: kmodules.xyz/custom-resources
-  version: 729e3de8c1075db502f1edc332ebdabde7f56d09
+  version: c4335a2fa9b1d61c2d2edeee8fa1a9bf732abceb
   repo: https://github.com/kmodules/custom-resources.git
   vcs: git
   subpackages:
-  - apis
   - apis/appcatalog
   - apis/appcatalog/v1alpha1
   - client/clientset/versioned/scheme
   - client/clientset/versioned/typed/appcatalog/v1alpha1
-  - client/clientset/versioned/typed/appcatalog/v1alpha1/util
 - name: kmodules.xyz/monitoring-agent-api
   version: 00cac08cb50defd6df8d08483fad35df790d7675
   repo: https://github.com/kmodules/monitoring-agent-api.git
