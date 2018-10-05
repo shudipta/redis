@@ -1,10 +1,10 @@
-hash: f7acb6eb4f98f88b8d79ee6494d66b41d6fc9f810fc41a155c5c15a6ef14f48d
-updated: 2018-09-20T17:27:22.73507446+06:00
+hash: 72eeb66e851ebe01cae7a8310597c25f0e44683c66b4d8c8a563ba6056cbf9f5
+updated: 2018-10-04T14:33:20.368910497+06:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
 - name: cloud.google.com/go
-  version: fe3d41e1ecb2ce36ad3a979037c9b9a2b726226f
+  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
   subpackages:
   - compute/metadata
   - internal
@@ -25,7 +25,7 @@ imports:
   - types
   - version
 - name: github.com/appscode/go-version
-  version: 0dcf3ac121c7c30e035b41ba9f652d1ce5994242
+  version: 7aba545c679b0f45679eeb406dc662d2c8a04c26
 - name: github.com/appscode/jsonpatch
   version: 5af499cf01c842bfdd7761a433fc90525ccd6836
 - name: github.com/appscode/kubernetes-webhook-util
@@ -34,7 +34,7 @@ imports:
   - admission/v1beta1
   - registry/admissionreview/v1beta1
 - name: github.com/appscode/kutil
-  version: bd70cefb33397b4c196aca7e33cab656755e195e
+  version: ab4a23e683a5b1c2d7f23f49b30c0316de8c7f94
   subpackages:
   - apiextensions/v1beta1
   - apps/v1
@@ -42,6 +42,7 @@ imports:
   - discovery
   - dynamic
   - meta
+  - tools/clientcmd
   - tools/exec
   - tools/portforward
   - tools/queue
@@ -219,7 +220,7 @@ imports:
 - name: github.com/fatih/structs
   version: 4966fc68f5b7593aafa6cbbba2d65ec6e1416047
 - name: github.com/ghodss/yaml
-  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
+  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
   version: 300e940a926eb277d3901b20bdfcc54928ad3642
 - name: github.com/go-openapi/jsonpointer
@@ -326,23 +327,42 @@ imports:
 - name: github.com/json-iterator/go
   version: 1624edc4454b8682399def8740d46db5e4362ba4
 - name: github.com/kubedb/apimachinery
-  version: bb2baed87600b4f0b4214ce6c8a488c128880569
+  version: 233ace916ccf91dc14ef1abffe2d349e1c3e69ef
   subpackages:
+  - apis
+  - apis/authorization
+  - apis/authorization/v1alpha1
+  - apis/catalog
+  - apis/catalog/v1alpha1
+  - apis/config/v1alpha1
   - apis/kubedb
   - apis/kubedb/v1alpha1
   - client/clientset/versioned
   - client/clientset/versioned/fake
   - client/clientset/versioned/scheme
+  - client/clientset/versioned/typed/authorization/v1alpha1
+  - client/clientset/versioned/typed/authorization/v1alpha1/fake
+  - client/clientset/versioned/typed/catalog/v1alpha1
+  - client/clientset/versioned/typed/catalog/v1alpha1/fake
+  - client/clientset/versioned/typed/config/v1alpha1
+  - client/clientset/versioned/typed/config/v1alpha1/fake
   - client/clientset/versioned/typed/kubedb/v1alpha1
   - client/clientset/versioned/typed/kubedb/v1alpha1/fake
   - client/clientset/versioned/typed/kubedb/v1alpha1/util
   - client/informers/externalversions
+  - client/informers/externalversions/authorization
+  - client/informers/externalversions/authorization/v1alpha1
+  - client/informers/externalversions/catalog
+  - client/informers/externalversions/catalog/v1alpha1
   - client/informers/externalversions/internalinterfaces
   - client/informers/externalversions/kubedb
   - client/informers/externalversions/kubedb/v1alpha1
+  - client/listers/authorization/v1alpha1
+  - client/listers/catalog/v1alpha1
   - client/listers/kubedb/v1alpha1
   - pkg/admission
   - pkg/admission/dormantdatabase
+  - pkg/admission/namespace
   - pkg/admission/snapshot
   - pkg/controller
   - pkg/controller/dormantdatabase
@@ -457,6 +477,8 @@ imports:
   - doc
 - name: github.com/spf13/pflag
   version: 583c0c0531f06d5278b7d917446061adc344b5cd
+- name: github.com/tamalsaha/go-oneliners
+  version: 82a97ec58df4809a2bc57ebbbcc1e6a2feb78111
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -529,7 +551,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/api
-  version: 19ff8768a5c0b8e46ea281065664787eefc24121
+  version: f5c49d98d21cc639f7ba8c7e4b127e88ee2af7ed
   subpackages:
   - gensupport
   - googleapi
@@ -962,13 +984,22 @@ imports:
   - pkg/client/clientset_generated/clientset/typed/apiregistration/v1
   - pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
 - name: k8s.io/kube-openapi
-  version: e3762e86a74c878ffed47484592986685639c2cd
+  version: 91cfa479c814065e420cee7ed227db0f63a5854e
   subpackages:
   - pkg/builder
   - pkg/common
   - pkg/handler
   - pkg/util
   - pkg/util/proto
+- name: kmodules.xyz/custom-resources
+  version: 096f21cfaff6aca79255cda79fb4e23cd6386096
+  repo: https://github.com/kmodules/custom-resources.git
+  vcs: git
+  subpackages:
+  - apis/appcatalog
+  - apis/appcatalog/v1alpha1
+  - client/clientset/versioned/scheme
+  - client/clientset/versioned/typed/appcatalog/v1alpha1
 - name: kmodules.xyz/monitoring-agent-api
   version: 00cac08cb50defd6df8d08483fad35df790d7675
   repo: https://github.com/kmodules/monitoring-agent-api.git
@@ -986,7 +1017,7 @@ imports:
   - api/v1
   - osm
 - name: kmodules.xyz/offshoot-api
-  version: 855b730d52eafc29c891f4e184cca154999c014b
+  version: 19332f50ff9b7d684402d5a9e604815391f5900b
   repo: https://github.com/kmodules/offshoot-api.git
   vcs: git
   subpackages:

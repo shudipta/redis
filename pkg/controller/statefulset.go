@@ -200,7 +200,7 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 		return nil, kutil.VerbUnchanged, rerr
 	}
 
-	redisVersion, err := c.ExtClient.RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{})
+	redisVersion, err := c.ExtClient.CatalogV1alpha1().RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{})
 	if err != nil {
 		return nil, kutil.VerbUnchanged, err
 	}
@@ -232,6 +232,7 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 			in.Spec.Template.Spec.InitContainers,
 			redis.Spec.PodTemplate.Spec.InitContainers,
 		)
+
 		var (
 			ports = []core.ContainerPort{
 				{
@@ -253,7 +254,6 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 			ImagePullPolicy: core.PullIfNotPresent,
 			Args:            redis.Spec.PodTemplate.Spec.Args,
 			Ports:           ports,
-			Resources:       redis.Spec.PodTemplate.Spec.Resources,
 			Env: []core.EnvVar{
 				{
 					Name: "POD_IP",
@@ -263,25 +263,37 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 						},
 					},
 				},
-				{
-					Name:  "REDIS_CONFIG",
-					Value: filepath.Join(CONFIG_MOUNT_PATH, RedisConfigRelativePath),
-				},
+				//{
+				//	Name:  "REDIS_CONFIG",
+				//	Value: filepath.Join(CONFIG_MOUNT_PATH, RedisConfigRelativePath),
+				//},
 			},
+			Resources:      redis.Spec.PodTemplate.Spec.Resources,
+			LivenessProbe:  redis.Spec.PodTemplate.Spec.LivenessProbe,
+			ReadinessProbe: redis.Spec.PodTemplate.Spec.ReadinessProbe,
+			Lifecycle:      redis.Spec.PodTemplate.Spec.Lifecycle,
 		})
 
+		in.Spec.Template.Spec.Subdomain = c.GoverningService
 		if redis.Spec.Mode == api.RedisModeCluster {
 			in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
 				Name:            "configure-cluster",
 				Image:           "alittleprogramming/cli-trib:configure-cluster",
-				ImagePullPolicy: core.PullIfNotPresent,
+				ImagePullPolicy: core.PullAlways,
+				SecurityContext: &core.SecurityContext{
+					Privileged: types.BoolP(true),
+				},
 				Env: []core.EnvVar{
 					{
-						Name: "BASE_NAME",
+						Name:  "BASE_NAME",
 						Value: redis.OffshootName(),
 					},
 					{
-						Name: "MASTER_COUNT",
+						Name:  "GOVERNING_SERVICE",
+						Value: c.GoverningService,
+					},
+					{
+						Name:  "MASTER_COUNT",
 						Value: strconv.Itoa(int(*redis.Spec.Cluster.Master)),
 					},
 					{

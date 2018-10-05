@@ -6,10 +6,15 @@ import (
 	"github.com/appscode/go/types"
 	crdutils "github.com/appscode/kutil/apiextensions/v1beta1"
 	meta_util "github.com/appscode/kutil/meta"
+	"github.com/kubedb/apimachinery/apis"
+	"github.com/kubedb/apimachinery/apis/kubedb"
 	apps "k8s.io/api/apps/v1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 )
+
+var _ apis.ResourceInfo = &Redis{}
 
 func (r Redis) OffshootName() string {
 	return r.Name
@@ -50,6 +55,22 @@ func (r Redis) ConfigMapName() string {
 	return r.OffshootName()
 }
 
+type redisApp struct {
+	*Redis
+}
+
+func (r redisApp) Name() string {
+	return fmt.Sprintf("kubedb:%s:%s:%s", ResourceSingularRedis, r.Redis.Namespace, r.Redis.Name)
+}
+
+func (r redisApp) Type() appcat.AppType {
+	return appcat.AppType(fmt.Sprintf("%s/%s", kubedb.GroupName, ResourceSingularRedis))
+}
+
+func (r Redis) AppBindingMeta() appcat.AppBindingMeta {
+	return &redisApp{&r}
+}
+
 type redisStatsService struct {
 	*Redis
 }
@@ -67,7 +88,7 @@ func (r redisStatsService) ServiceMonitorName() string {
 }
 
 func (r redisStatsService) Path() string {
-	return fmt.Sprintf("/kubedb.com/v1alpha1/namespaces/%s/%s/%s/metrics", r.Namespace, r.ResourcePlural(), r.Name)
+	return "/metrics"
 }
 
 func (r redisStatsService) Scheme() string {
@@ -107,7 +128,7 @@ func (r Redis) CustomResourceDefinition() *apiextensions.CustomResourceDefinitio
 		SpecDefinitionName:      "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1.Redis",
 		EnableValidation:        true,
 		GetOpenAPIDefinitions:   GetOpenAPIDefinitions,
-		EnableStatusSubresource: EnableStatusSubresource,
+		EnableStatusSubresource: apis.EnableStatusSubresource,
 		AdditionalPrinterColumns: []apiextensions.CustomResourceColumnDefinition{
 			{
 				Name:     "Version",
@@ -125,7 +146,7 @@ func (r Redis) CustomResourceDefinition() *apiextensions.CustomResourceDefinitio
 				JSONPath: ".metadata.creationTimestamp",
 			},
 		},
-	}, setNameSchema)
+	}, apis.SetNameSchema)
 }
 
 func (r *Redis) SetDefaults() {
@@ -141,6 +162,10 @@ func (r *RedisSpec) SetDefaults() {
 	}
 
 	// migrate first to avoid incorrect defaulting
+	if r.DoNotPause {
+		r.TerminationPolicy = TerminationPolicyDoNotTerminate
+		r.DoNotPause = false
+	}
 	if len(r.NodeSelector) > 0 {
 		r.PodTemplate.Spec.NodeSelector = r.NodeSelector
 		r.NodeSelector = nil

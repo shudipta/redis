@@ -6,7 +6,9 @@ import (
 
 	hooks "github.com/appscode/kubernetes-webhook-util/admission/v1beta1"
 	admissionreview "github.com/appscode/kubernetes-webhook-util/registry/admissionreview/v1beta1"
+	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/apimachinery/pkg/admission/dormantdatabase"
+	"github.com/kubedb/apimachinery/pkg/admission/namespace"
 	"github.com/kubedb/apimachinery/pkg/admission/snapshot"
 	rdAdmsn "github.com/kubedb/redis/pkg/admission"
 	"github.com/kubedb/redis/pkg/controller"
@@ -102,6 +104,9 @@ func (c completedConfig) New() (*RedisServer, error) {
 		&rdAdmsn.RedisMutator{},
 		&snapshot.SnapshotValidator{},
 		&dormantdatabase.DormantDatabaseValidator{},
+		&namespace.NamespaceValidator{
+			Resources: []string{api.ResourcePluralRedis},
+		},
 	}
 	ctrl, err := c.OperatorConfig.New()
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/appscode/go/types"
 	"github.com/appscode/kutil/meta"
+	catalog "github.com/kubedb/apimachinery/apis/catalog/v1alpha1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	extFake "github.com/kubedb/apimachinery/client/clientset/versioned/fake"
 	"github.com/kubedb/apimachinery/client/clientset/versioned/scheme"
@@ -40,7 +41,7 @@ func TestRedisValidator_Admit(t *testing.T) {
 
 			validator.initialized = true
 			validator.extClient = extFake.NewSimpleClientset(
-				&api.RedisVersion{
+				&catalog.RedisVersion{
 					ObjectMeta: metaV1.ObjectMeta{
 						Name: "4.0",
 					},
@@ -171,17 +172,17 @@ var cases = []struct {
 		false,
 		false,
 	},
-	{"Edit Spec.DoNotPause",
+	{"Edit Spec.TerminationPolicy",
 		requestKind,
 		"foo",
 		"default",
 		admission.Update,
-		editSpecDoNotPause(sampleRedis()),
+		pauseDatabase(sampleRedis()),
 		sampleRedis(),
 		false,
 		true,
 	},
-	{"Delete Redis when Spec.DoNotPause=true",
+	{"Delete Redis when Spec.TerminationPolicy = DoNotTerminate",
 		requestKind,
 		"foo",
 		"default",
@@ -191,12 +192,12 @@ var cases = []struct {
 		true,
 		false,
 	},
-	{"Delete Redis when Spec.DoNotPause=false",
+	{"Delete Redis when Spec.TerminationPolicy = Pause",
 		requestKind,
 		"foo",
 		"default",
 		admission.Delete,
-		editSpecDoNotPause(sampleRedis()),
+		pauseDatabase(sampleRedis()),
 		api.Redis{},
 		true,
 		true,
@@ -289,8 +290,9 @@ func sampleRedisWithoutMode() api.Redis {
 			},
 		},
 		Spec: api.RedisSpec{
-			Version:     "4.0",
-			DoNotPause:  true,
+			Version:  "4.0",
+			Replicas: types.Int32P(1),
+			//DoNotPause: true,
 			StorageType: api.StorageTypeDurable,
 			Storage: &core.PersistentVolumeClaimSpec{
 				StorageClassName: types.StringP("standard"),
@@ -303,7 +305,7 @@ func sampleRedisWithoutMode() api.Redis {
 			UpdateStrategy: apps.StatefulSetUpdateStrategy{
 				Type: apps.RollingUpdateStatefulSetStrategyType,
 			},
-			TerminationPolicy: api.TerminationPolicyPause,
+			TerminationPolicy: api.TerminationPolicyDoNotTerminate,
 		},
 	}
 }
@@ -358,8 +360,8 @@ func editSpecInvalidMonitor(old api.Redis) api.Redis {
 	return old
 }
 
-func editSpecDoNotPause(old api.Redis) api.Redis {
-	old.Spec.DoNotPause = false
+func pauseDatabase(old api.Redis) api.Redis {
+	old.Spec.TerminationPolicy = api.TerminationPolicyPause
 	return old
 }
 

@@ -1,10 +1,10 @@
 ## rd-operator run
 
-Launch Redis server
+Launch Redis operator
 
 ### Synopsis
 
-Launch Redis server
+Launch Redis operator
 
 ```
 rd-operator run [flags]

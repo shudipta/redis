@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/tamalsaha/go-oneliners"
 )
 
 type Cmd struct {
@@ -58,7 +60,18 @@ func (c *Cmd) Run(command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
 	c.Options.SetStreamOptions(cmd, &cmdOut, &cmdErr)
 
-	if err := cmd.Run(); err != nil {
+	fmt.Println(command, args)
+	//if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	oneliners.PrettyJson(cmdOut.String(), "out")
+	if err != nil {
+		oneliners.PrettyJson(err.Error(), "err")
+	}
+	if cmdErr.Len() > 0 {
+		oneliners.PrettyJson(cmdErr.String(), "stderr")
+	}
+
+	if err != nil {
 		return "", fmt.Errorf("could not execute: %v", err)
 	}
 

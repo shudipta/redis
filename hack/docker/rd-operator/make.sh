@@ -42,7 +42,7 @@ build_docker() {
   chmod 755 rd-operator
 
   cat >Dockerfile <<EOL
-FROM alpine
+FROM alpine:3.8
 
 RUN set -x \
   && apk add --update --no-cache ca-certificates
@@ -52,7 +52,7 @@ COPY rd-operator /usr/bin/rd-operator
 USER nobody:nobody
 ENTRYPOINT ["rd-operator"]
 EOL
-  local cmd="docker build -t $DOCKER_REGISTRY/$IMG:$TAG ."
+  local cmd="docker build --pull -t $DOCKER_REGISTRY/$IMG:$TAG ."
   echo $cmd; $cmd
 
   rm rd-operator Dockerfile

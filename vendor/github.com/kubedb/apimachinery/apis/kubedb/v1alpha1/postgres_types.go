@@ -37,10 +37,10 @@ type PostgresSpec struct {
 	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Standby mode
-	StandbyMode *StandbyMode `json:"standbyMode,omitempty"`
+	StandbyMode *PostgresStandbyMode `json:"standbyMode,omitempty"`
 
 	// Streaming mode
-	StreamingMode *StreamingMode `json:"streamingMode,omitempty"`
+	StreamingMode *PostgresStreamingMode `json:"streamingMode,omitempty"`
 
 	// Archive for wal files
 	Archiver *PostgresArchiverSpec `json:"archiver,omitempty"`
@@ -61,11 +61,6 @@ type PostgresSpec struct {
 	// BackupSchedule spec to specify how database backup will be taken
 	// +optional
 	BackupSchedule *BackupScheduleSpec `json:"backupSchedule,omitempty"`
-
-	// If DoNotPause is true, controller will prevent to delete this Postgres object.
-	// Controller will create same Postgres object and ignore other process.
-	// +optional
-	DoNotPause bool `json:"doNotPause,omitempty"`
 
 	// Monitor is used monitor database instance
 	// +optional
@@ -93,6 +88,12 @@ type PostgresSpec struct {
 	TerminationPolicy TerminationPolicy `json:"terminationPolicy,omitempty"`
 
 	// -------------------------------------------------------------------------
+
+	// If DoNotPause is true, controller will prevent to delete this Postgres object.
+	// Controller will create same Postgres object and ignore other process.
+	// +optional
+	// Deprecated: Use terminationPolicy = DoNotTerminate
+	DoNotPause bool `json:"doNotPause,omitempty"`
 
 	// NodeSelector is a selector which must be true for the pod to fit on a node
 	// +optional
@@ -170,16 +171,24 @@ type PostgresWALSourceSpec struct {
 	store.Backend `json:",inline,omitempty"`
 }
 
-type StandbyMode string
+type PostgresStandbyMode string
 
 const (
-	HotStandby  StandbyMode = "hot"
-	WarmStandby StandbyMode = "warm"
+	HotPostgresStandbyMode  PostgresStandbyMode = "Hot"
+	WarmPostgresStandbyMode PostgresStandbyMode = "Warm"
+
+	// Deprecated
+	DeprecatedHotStandby PostgresStandbyMode = "hot"
+	// Deprecated
+	DeprecatedWarmStandby PostgresStandbyMode = "warm"
 )
 
-type StreamingMode string
+type PostgresStreamingMode string
 
 const (
-	SynchronousStreaming  StreamingMode = "synchronous"
-	AsynchronousStreaming StreamingMode = "asynchronous"
+	SynchronousPostgresStreamingMode  PostgresStreamingMode = "Synchronous"
+	AsynchronousPostgresStreamingMode PostgresStreamingMode = "Asynchronous"
+
+	// Deprecated
+	DeprecatedAsynchronousStreaming PostgresStreamingMode = "asynchronous"
 )

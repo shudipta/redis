@@ -44,6 +44,9 @@ type ElasticsearchSpec struct {
 	// Secret with SSL certificates
 	CertificateSecret *core.SecretVolumeSource `json:"certificateSecret,omitempty"`
 
+	// Authentication plugin used by Elasticsearch cluster. If unset, defaults to SearchGuard.
+	AuthPlugin ElasticsearchAuthPlugin `json:"authPlugin,omitempty"`
+
 	// Database authentication secret
 	DatabaseSecret *core.SecretVolumeSource `json:"databaseSecret,omitempty"`
 
@@ -60,11 +63,6 @@ type ElasticsearchSpec struct {
 	// BackupSchedule spec to specify how database backup will be taken
 	// +optional
 	BackupSchedule *BackupScheduleSpec `json:"backupSchedule,omitempty"`
-
-	// If DoNotPause is true, controller will prevent to delete this Elasticsearch object.
-	// Controller will create same Elasticsearch object and ignore other process.
-	// +optional
-	DoNotPause bool `json:"doNotPause,omitempty"`
 
 	// Monitor is used monitor database instance
 	// +optional
@@ -92,6 +90,12 @@ type ElasticsearchSpec struct {
 	TerminationPolicy TerminationPolicy `json:"terminationPolicy,omitempty"`
 
 	// -------------------------------------------------------------------------
+
+	// If DoNotPause is true, controller will prevent to delete this Elasticsearch object.
+	// Controller will create same Elasticsearch object and ignore other process.
+	// +optional
+	// Deprecated: Use terminationPolicy = DoNotTerminate
+	DoNotPause bool `json:"doNotPause,omitempty"`
 
 	// NodeSelector is a selector which must be true for the pod to fit on a node
 	// +optional
@@ -167,3 +171,11 @@ type ElasticsearchSummary struct {
 	Mapping interface{}      `json:"mapping"`
 	Setting interface{}      `json:"setting"`
 }
+
+type ElasticsearchAuthPlugin string
+
+const (
+	ElasticsearchAuthPluginSearchGuard ElasticsearchAuthPlugin = "SearchGuard" // Default
+	ElasticsearchAuthPluginNone        ElasticsearchAuthPlugin = "None"
+	ElasticsearchAuthPluginXpack       ElasticsearchAuthPlugin = "X-Pack"
+)

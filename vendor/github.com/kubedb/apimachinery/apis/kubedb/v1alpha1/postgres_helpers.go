@@ -5,10 +5,15 @@ import (
 
 	crdutils "github.com/appscode/kutil/apiextensions/v1beta1"
 	meta_util "github.com/appscode/kutil/meta"
+	"github.com/kubedb/apimachinery/apis"
+	"github.com/kubedb/apimachinery/apis/kubedb"
 	apps "k8s.io/api/apps/v1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 )
+
+var _ apis.ResourceInfo = &Postgres{}
 
 func (p Postgres) OffshootName() string {
 	return p.Name
@@ -24,8 +29,6 @@ func (p Postgres) OffshootSelectors() map[string]string {
 func (p Postgres) OffshootLabels() map[string]string {
 	return meta_util.FilterKeys(GenericKey, p.OffshootSelectors(), p.Labels)
 }
-
-var _ ResourceInfo = &Postgres{}
 
 func (p Postgres) ResourceShortCode() string {
 	return ResourceCodePostgres
@@ -47,6 +50,22 @@ func (p Postgres) ServiceName() string {
 	return p.OffshootName()
 }
 
+type postgresApp struct {
+	*Postgres
+}
+
+func (r postgresApp) Name() string {
+	return fmt.Sprintf("kubedb:%s:%s:%s", ResourceSingularPostgres, r.Postgres.Namespace, r.Postgres.Name)
+}
+
+func (r postgresApp) Type() appcat.AppType {
+	return appcat.AppType(fmt.Sprintf("%s/%s", kubedb.GroupName, ResourceSingularPostgres))
+}
+
+func (r Postgres) AppBindingMeta() appcat.AppBindingMeta {
+	return &postgresApp{&r}
+}
+
 type postgresStatsService struct {
 	*Postgres
 }
@@ -64,7 +83,7 @@ func (p postgresStatsService) ServiceMonitorName() string {
 }
 
 func (p postgresStatsService) Path() string {
-	return fmt.Sprintf("/kubedb.com/v1alpha1/namespaces/%s/%s/%s/metrics", p.Namespace, p.ResourcePlural(), p.Name)
+	return "/metrics"
 }
 
 func (p postgresStatsService) Scheme() string {
@@ -108,7 +127,7 @@ func (p Postgres) CustomResourceDefinition() *apiextensions.CustomResourceDefini
 		SpecDefinitionName:      "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1.Postgres",
 		EnableValidation:        true,
 		GetOpenAPIDefinitions:   GetOpenAPIDefinitions,
-		EnableStatusSubresource: EnableStatusSubresource,
+		EnableStatusSubresource: apis.EnableStatusSubresource,
 		AdditionalPrinterColumns: []apiextensions.CustomResourceColumnDefinition{
 			{
 				Name:     "Version",
@@ -126,7 +145,7 @@ func (p Postgres) CustomResourceDefinition() *apiextensions.CustomResourceDefini
 				JSONPath: ".metadata.creationTimestamp",
 			},
 		},
-	}, setNameSchema)
+	}, apis.SetNameSchema)
 }
 
 func (p *Postgres) SetDefaults() {
@@ -143,6 +162,10 @@ func (p *PostgresSpec) SetDefaults() {
 
 	// migrate first to avoid incorrect defaulting
 	p.BackupSchedule.SetDefaults()
+	if p.DoNotPause {
+		p.TerminationPolicy = TerminationPolicyDoNotTerminate
+		p.DoNotPause = false
+	}
 	if len(p.NodeSelector) > 0 {
 		p.PodTemplate.Spec.NodeSelector = p.NodeSelector
 		p.NodeSelector = nil

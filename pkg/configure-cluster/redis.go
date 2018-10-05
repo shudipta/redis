@@ -9,28 +9,86 @@ import (
 	"github.com/appscode/go/log"
 	"github.com/appscode/go/sets"
 	"github.com/tamalsaha/go-oneliners"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func ConfigureRedisCluster() {
-	config := getConfigFromEnv()
+	config := getConfig()
 	//_ = getConfigFromEnv()
-	clusterGetKeysInSlot("172.17.0.5", "3168")
-	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.5"))
-	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.4"))
-	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.13"))
-	fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.6"))
-
+	//clusterGetKeysInSlot("172.17.0.5", "3168")
+	//fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.5"))
+	//fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.3"))
+	//fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.14"))
+	//fmt.Printf("\n>%s<\n", getClusterNodes("172.17.0.6"))
+	//config.getIPs()
 	config.waitUntillRedisServersToBeReady()
 	config.configureClusterState()
-
 
 	select {}
 }
 
+func (c Config) getIPs() [][]string {
+	//ips := make(map[string]string)
+	ips := make([][]string, c.Cluster.MasterCnt)
+	for i := 0; i < c.Cluster.MasterCnt; i++ {
+		ips[i] = []string{}
+		for j := 0; j <= c.Cluster.Replicas; j++ {
+			podName := fmt.Sprintf("%s-shard%d-%d", c.BaseName, i, j)
+			for {
+				pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
+				if err != nil && !kerr.IsNotFound(err) {
+					panic(err)
+				} else if err == nil {
+					ips[i] = append(ips[i], pod.Status.PodIP)
+					break
+				}
+			}
+			//pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
+			//if err != nil {
+			//	if !kerr.IsNotFound(err) {
+			//		panic(err)
+			//	}
+			//}
+		}
+	}
+
+	oneliners.PrettyJson(ips)
+	return ips
+
+	//if pods, err := c.KubeClient.CoreV1().Pods(c.Namespace).List(metav1.ListOptions{
+	//	LabelSelector: labels.Set{
+	//		api.LabelDatabaseKind: api.ResourceKindRedis,
+	//		api.LabelDatabaseName: c.BaseName,
+	//	}.String(),
+	//}); err == nil {
+	//	for _, po := range pods.Items {
+	//		ips[po.Name] = po.Status.PodIP
+	//	}
+	//
+	//	oneliners.PrettyJson(ips, "ips")
+	//} else {
+	//	panic(err)
+	//}
+}
+
 func getIPByHostName(host string) string {
 	cmd := NewCmdWithDefaultOptions()
+	var (
+		out string
+		err error
+	)
+	for {
 
-	out, err := cmd.Run("ping", []string{"-c", "1", host}...)
+		out, err = cmd.Run("ping", []string{"-c", "1", host}...)
+		//oneliners.PrettyJson(host, "host")
+		//oneliners.PrettyJson(out, "ip")
+		//oneliners.PrettyJson(err.Error(), "ip err")
+
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +224,7 @@ func clusterGetKeysInSlot(srcNodeIp, slot string) string {
 		panic(err)
 	}
 
-	return out
+	return strings.TrimSpace(out)
 }
 
 func reshard(nds map[string]*RedisNode, srcNodeID, dstNodeID string, requstedSlotsCount int) {
@@ -182,7 +240,7 @@ func reshard(nds map[string]*RedisNode, srcNodeID, dstNodeID string, requstedSlo
 	var movedSlotsCount int
 	movedSlotsCount = 0
 Reshard:
-	for i, _ := range nds[srcNodeID].SlotStart {
+	for i := range nds[srcNodeID].SlotStart {
 		if movedSlotsCount >= requstedSlotsCount {
 			break Reshard
 		}
@@ -245,12 +303,13 @@ func getNodeRole(nodeConf string) (nodeRole string) {
 }
 
 func (c Config) waitUntillRedisServersToBeReady() {
+	ips := c.getIPs()
 	for i := 0; i < c.Cluster.MasterCnt; i++ {
 		for j := 0; j <= c.Cluster.Replicas; j++ {
-			ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local", c.BaseName, i, j, c.Namespace))
+			//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, j, c.GoverningService, c.Namespace))
 			for {
-				if ping(ip) == "PONG" {
-					log.Infof("%s is ready", ip)
+				if ping(ips[i][j]) == "PONG" {
+					log.Infof("%s is ready", ips[i][j])
 					break
 				}
 			}
@@ -265,6 +324,7 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 		nds        map[string]*RedisNode
 	)
 
+	nds = make(map[string]*RedisNode)
 	nodes := strings.Split(nodesConf, "\n")
 
 	for _, node := range nodes {
@@ -284,7 +344,7 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 			}
 			nd.SlotsCnt = 0
 			for j := 8; j < len(parts); j++ {
-				if parts[j][0] == '[' && parts[j][len(parts[j]) - 1] == ']' {
+				if parts[j][0] == '[' && parts[j][len(parts[j])-1] == ']' {
 					continue
 				}
 
@@ -340,7 +400,9 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 }
 
 func (c Config) configureClusterState() {
-	ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local", c.BaseName, 0, 0, c.Namespace))
+	ips := c.getIPs()
+	//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, 0, 0, c.GoverningService, c.Namespace))
+	ip := ips[0][0]
 	nodesConf := getClusterNodes(ip)
 
 	nds := processNodesConf(nodesConf)
@@ -351,7 +413,7 @@ func (c Config) configureClusterState() {
 		if c.Cluster.Replicas < len(master.Slaves) {
 			var (
 				runningSlavesIPs sets.String
-				isMasterfound            bool
+				isMasterfound    bool
 			)
 
 			// find slaves' ips of this master those need to be keep alive
@@ -360,8 +422,9 @@ func (c Config) configureClusterState() {
 				isMasterfound = false
 
 				for j := 0; j <= c.Cluster.Replicas; j++ {
-					curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
-						c.BaseName, i, j, c.Namespace))
+					//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
+					//	c.BaseName, i, j, c.GoverningService, c.Namespace))
+					curIP := ips[i][j]
 					if curIP == master.Ip {
 						isMasterfound = true
 						continue
@@ -384,6 +447,8 @@ func (c Config) configureClusterState() {
 		}
 	}
 
+	ips = c.getIPs()
+	ip = ips[0][0]
 	nodesConf = getClusterNodes(ip)
 	nds = processNodesConf(nodesConf)
 	masterCnt = len(nds)
@@ -392,14 +457,15 @@ func (c Config) configureClusterState() {
 	if masterCnt > c.Cluster.MasterCnt {
 		var (
 			masterIDsToBeRemoved, masterIDsToBeKept []string
-			slotsPerMaster, slotsRequired int//, allocatedSlotsCnt int
+			slotsPerMaster, slotsRequired           int //, allocatedSlotsCnt int
 		)
 
 		slotsPerMaster = 16384 / c.Cluster.MasterCnt
 		for i := 0; i < masterCnt; i++ {
 			for j := 0; j <= c.Cluster.Replicas; j++ {
-				curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
-					c.BaseName, i, j, c.Namespace))
+				//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
+				//	c.BaseName, i, j, c.GoverningService, c.Namespace))
+				curIP := ips[i][j]
 				myConf := getMyConf(getClusterNodes(curIP))
 
 				if getNodeRole(myConf) == "master" {
@@ -432,7 +498,7 @@ func (c Config) configureClusterState() {
 					// that is being added.
 					if nds[from].SlotsCnt > 0 {
 						slots := nds[from].SlotsCnt
-						if slots > slotsRequired - nds[to].SlotsCnt {
+						if slots > slotsRequired-nds[to].SlotsCnt {
 							slots = slotsRequired - nds[to].SlotsCnt
 						}
 
@@ -450,14 +516,20 @@ func (c Config) configureClusterState() {
 			deleteNode(ip+":6379", masterIDToBeRemoved)
 			clusterReset(nds[masterIDToBeRemoved].Ip)
 		}
-		nds = processNodesConf(getClusterNodes(ip))
 	}
+
+	ips = c.getIPs()
+	ip = ips[0][0]
+	nodesConf = getClusterNodes(ip)
+	nds = processNodesConf(nodesConf)
+	masterCnt = len(nds)
 
 	if masterCnt > 1 {
 		// add new master(s)
 		if masterCnt < c.Cluster.MasterCnt {
 			for i := masterCnt; i < c.Cluster.MasterCnt; i++ {
-				newMasterIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local", c.BaseName, i, 0, c.Namespace))
+				//newMasterIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, 0, c.GoverningService, c.Namespace))
+				newMasterIp := ips[i][0]
 				addNode(newMasterIp+":6379", ip+"6379", "")
 			}
 			nds = processNodesConf(getClusterNodes(ip))
@@ -465,9 +537,9 @@ func (c Config) configureClusterState() {
 
 		// add slots to empty master(s)
 		var (
-			masterIDsWithLessSlots, masterIDsWithExtraSlots  []string
+			masterIDsWithLessSlots, masterIDsWithExtraSlots []string
 			//nonEmptyMastersId, emptyMastersId                []string
-			slotsPerMaster, slotsRequired int//, allocatedSlotsCnt int
+			slotsPerMaster, slotsRequired int //, allocatedSlotsCnt int
 		)
 
 		slotsPerMaster = 16384 / c.Cluster.MasterCnt
@@ -498,7 +570,7 @@ func (c Config) configureClusterState() {
 					// that is being added.
 					if nds[from].SlotsCnt > slotsPerMaster {
 						slots := nds[from].SlotsCnt - slotsPerMaster
-						if slots > slotsRequired - nds[to].SlotsCnt {
+						if slots > slotsRequired-nds[to].SlotsCnt {
 							slots = slotsRequired - nds[to].SlotsCnt
 						}
 
@@ -542,16 +614,22 @@ func (c Config) configureClusterState() {
 		//		}
 		//	}
 		//}
-		nds = processNodesConf(getClusterNodes(ip))
+
+		ips = c.getIPs()
+		ip = ips[0][0]
+		nodesConf = getClusterNodes(ip)
+		nds = processNodesConf(nodesConf)
+		masterCnt = len(nds)
 
 		// add new slave(s)
 		for i := 0; i < c.Cluster.MasterCnt; i++ {
 			curMasterId := ""
 			curMasterIp := ""
-FindMaster:
+		FindMaster:
 			for j := 0; j <= c.Cluster.Replicas; j++ {
-				curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
-					c.BaseName, i, j, c.Namespace))
+				//curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
+				//	c.BaseName, i, j, c.GoverningService, c.Namespace))
+				curIp := ips[i][j]
 				for masterId := range nds {
 					if nds[masterId].Ip == curIp {
 						curMasterIp = curIp
@@ -562,10 +640,11 @@ FindMaster:
 			}
 
 			for j := 0; j <= c.Cluster.Replicas; j++ {
-				curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
-					c.BaseName, i, j, c.Namespace))
+				//curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
+				//	c.BaseName, i, j, c.GoverningService, c.Namespace))
+				curIp := ips[i][j]
 				exists := false
-FindSlave:
+			FindSlave:
 				for _, master := range nds {
 					for _, slave := range master.Slaves {
 						if slave.Ip == curIp {
@@ -588,10 +667,12 @@ FindSlave:
 func (c Config) createNewCluster() {
 	masterAddrs := make([]string, c.Cluster.MasterCnt)
 	masterNodeIds := make([]string, c.Cluster.MasterCnt)
+	ips := c.getIPs()
 
 	for i := 0; i < c.Cluster.MasterCnt; i++ {
-		ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local",
-			c.BaseName, i, 0, c.Namespace))
+		//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
+		//	c.BaseName, i, 0, c.GoverningService, c.Namespace))
+		ip := ips[i][0]
 		masterAddrs[i] = ip + ":6379"
 		masterNodeIds[i] = getNodeId(getMyConf(getClusterNodes(ip)))
 	}
@@ -599,7 +680,8 @@ func (c Config) createNewCluster() {
 
 	for i := 0; i < c.Cluster.MasterCnt; i++ {
 		for j := 1; j <= c.Cluster.Replicas; j++ {
-			ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.svc.cluster.local", c.BaseName, i, j, c.Namespace))
+			//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, j, c.GoverningService, c.Namespace))
+			ip := ips[i][j]
 			addNode(ip+":6379", masterAddrs[i], masterNodeIds[i])
 		}
 	}

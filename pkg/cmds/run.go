@@ -13,10 +13,10 @@ func NewCmdRun(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:               "run",
-		Short:             "Launch Redis server",
+		Short:             "Launch Redis operator",
 		DisableAutoGenTag: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Infoln("Starting redis-server...")
+			log.Infoln("Starting redis operator...")
 
 			if err := o.Complete(); err != nil {
 				return err

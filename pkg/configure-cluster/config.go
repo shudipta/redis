@@ -1,15 +1,21 @@
 package configure_cluster
 
 import (
+	"io/ioutil"
 	"os"
 	"strconv"
-	"io/ioutil"
 	"strings"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type Config struct {
-	BaseName  string
-	Namespace string
+	KubeClient kubernetes.Interface
+
+	BaseName         string
+	Namespace        string
+	GoverningService string
 
 	Cluster RedisCluster
 }
@@ -34,7 +40,16 @@ type RedisNode struct {
 	Slaves []*RedisNode
 }
 
-func getConfigFromEnv() Config {
+func getConfig() Config {
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err)
+	}
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		panic(err)
+	}
+
 	baseName := os.Getenv("BASE_NAME")
 	namespace := ""
 	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
@@ -47,12 +62,18 @@ func getConfigFromEnv() Config {
 	//if namespace == "" {
 	//	namespace = "default"
 	//}
+	governingService := os.Getenv("GOVERNING_SERVICE")
+	if governingService == "" {
+		governingService = "kubedb"
+	}
 	masterCnt, _ := strconv.Atoi(os.Getenv("MASTER_COUNT"))
 	replicas, _ := strconv.Atoi(os.Getenv("REPLICAS"))
 
 	return Config{
-		BaseName:  baseName,
-		Namespace: namespace,
+		KubeClient:       kubeClient,
+		BaseName:         baseName,
+		Namespace:        namespace,
+		GoverningService: governingService,
 		Cluster: RedisCluster{
 			MasterCnt: masterCnt,
 			Replicas:  replicas,

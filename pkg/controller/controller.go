@@ -7,8 +7,10 @@ import (
 	meta_util "github.com/appscode/kutil/meta"
 	"github.com/appscode/kutil/tools/queue"
 	pcm "github.com/coreos/prometheus-operator/pkg/client/monitoring/v1"
+	"github.com/kubedb/apimachinery/apis"
+	catalog "github.com/kubedb/apimachinery/apis/catalog/v1alpha1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
-	cs "github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1"
+	cs "github.com/kubedb/apimachinery/client/clientset/versioned"
 	kutildb "github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1/util"
 	api_listers "github.com/kubedb/apimachinery/client/listers/kubedb/v1alpha1"
 	amc "github.com/kubedb/apimachinery/pkg/controller"
@@ -51,7 +53,7 @@ func New(
 	restConfig *restclient.Config,
 	client kubernetes.Interface,
 	apiExtKubeClient crd_cs.ApiextensionsV1beta1Interface,
-	extClient cs.KubedbV1alpha1Interface,
+	extClient cs.Interface,
 	dynamicClient dynamic.Interface,
 	promClient pcm.MonitoringV1Interface,
 	opt amc.Config,
@@ -78,7 +80,7 @@ func (c *Controller) EnsureCustomResourceDefinitions() error {
 	log.Infoln("Ensuring CustomResourceDefinition...")
 	crds := []*crd_api.CustomResourceDefinition{
 		api.Redis{}.CustomResourceDefinition(),
-		api.RedisVersion{}.CustomResourceDefinition(),
+		catalog.RedisVersion{}.CustomResourceDefinition(),
 		api.DormantDatabase{}.CustomResourceDefinition(),
 		api.Snapshot{}.CustomResourceDefinition(),
 	}
@@ -143,12 +145,12 @@ func (c *Controller) pushFailureEvent(redis *api.Redis, reason string) {
 		reason,
 	)
 
-	rd, err := kutildb.UpdateRedisStatus(c.ExtClient, redis, func(in *api.RedisStatus) *api.RedisStatus {
+	rd, err := kutildb.UpdateRedisStatus(c.ExtClient.KubedbV1alpha1(), redis, func(in *api.RedisStatus) *api.RedisStatus {
 		in.Phase = api.DatabasePhaseFailed
 		in.Reason = reason
 		in.ObservedGeneration = types.NewIntHash(redis.Generation, meta_util.GenerationHash(redis))
 		return in
-	}, api.EnableStatusSubresource)
+	}, apis.EnableStatusSubresource)
 	if err != nil {
 		c.recorder.Eventf(
 			redis,

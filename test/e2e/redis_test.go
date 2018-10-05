@@ -5,6 +5,7 @@ import (
 
 	"github.com/appscode/go/crypto/rand"
 	exec_util "github.com/appscode/kutil/tools/exec"
+	catalog "github.com/kubedb/apimachinery/apis/catalog/v1alpha1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1/util"
 	"github.com/kubedb/redis/test/e2e/framework"
@@ -20,7 +21,7 @@ var _ = Describe("Redis", func() {
 		err          error
 		f            *framework.Invocation
 		redis        *api.Redis
-		redisVersion *api.RedisVersion
+		redisVersion *catalog.RedisVersion
 		skipMessage  string
 		key          string
 		value        string
@@ -137,9 +138,9 @@ var _ = Describe("Redis", func() {
 			})
 		})
 
-		Context("DoNotPause", func() {
+		Context("DoNotTerminate", func() {
 			BeforeEach(func() {
-				redis.Spec.DoNotPause = true
+				redis.Spec.TerminationPolicy = api.TerminationPolicyDoNotTerminate
 			})
 
 			It("should work successfully", func() {
@@ -156,9 +157,9 @@ var _ = Describe("Redis", func() {
 				By("Check for Running redis")
 				f.EventuallyRedisRunning(redis.ObjectMeta).Should(BeTrue())
 
-				By("Update redis to set DoNotPause=false")
+				By("Update redis to set spec.terminationPolicy = Pause")
 				f.TryPatchRedis(redis.ObjectMeta, func(in *api.Redis) *api.Redis {
-					in.Spec.DoNotPause = false
+					in.Spec.TerminationPolicy = api.TerminationPolicyPause
 					return in
 				})
 			})
@@ -387,7 +388,7 @@ var _ = Describe("Redis", func() {
 					createAndWaitForRunning()
 
 					By("Updating Envs")
-					_, _, err := util.PatchRedis(f.ExtClient(), redis, func(in *api.Redis) *api.Redis {
+					_, _, err := util.PatchRedis(f.ExtClient().KubedbV1alpha1(), redis, func(in *api.Redis) *api.Redis {
 						in.Spec.PodTemplate.Spec.Env = []core.EnvVar{
 							{
 								Name:  "TEST_ENV",

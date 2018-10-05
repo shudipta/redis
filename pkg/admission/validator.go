@@ -10,7 +10,6 @@ import (
 	meta_util "github.com/appscode/kutil/meta"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	cs "github.com/kubedb/apimachinery/client/clientset/versioned"
-	kubedbv1alpha1 "github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1"
 	amv "github.com/kubedb/apimachinery/pkg/validator"
 	"github.com/pkg/errors"
 	admission "k8s.io/api/admission/v1beta1"
@@ -85,8 +84,8 @@ func (a *RedisValidator) Admit(req *admission.AdmissionRequest) *admission.Admis
 			obj, err := a.extClient.KubedbV1alpha1().Redises(req.Namespace).Get(req.Name, metav1.GetOptions{})
 			if err != nil && !kerr.IsNotFound(err) {
 				return hookapi.StatusInternalServerError(err)
-			} else if err == nil && obj.Spec.DoNotPause {
-				return hookapi.StatusBadRequest(fmt.Errorf(`redis "%s" can't be paused. To continue delete, unset spec.doNotPause and retry`, req.Name))
+			} else if err == nil && obj.Spec.TerminationPolicy == api.TerminationPolicyDoNotTerminate {
+				return hookapi.StatusBadRequest(fmt.Errorf(`redis "%s" can't be paused. To delete, change spec.terminationPolicy`, req.Name))
 			}
 		}
 	default:
@@ -107,7 +106,7 @@ func (a *RedisValidator) Admit(req *admission.AdmissionRequest) *admission.Admis
 			}
 		}
 		// validate database specs
-		if err = ValidateRedis(a.client, a.extClient.KubedbV1alpha1(), obj.(*api.Redis)); err != nil {
+		if err = ValidateRedis(a.client, a.extClient, obj.(*api.Redis)); err != nil {
 			return hookapi.StatusForbidden(err)
 		}
 	}
@@ -117,14 +116,27 @@ func (a *RedisValidator) Admit(req *admission.AdmissionRequest) *admission.Admis
 
 // ValidateRedis checks if the object satisfies all the requirements.
 // It is not method of Interface, because it is referenced from controller package too.
-func ValidateRedis(client kubernetes.Interface, extClient kubedbv1alpha1.KubedbV1alpha1Interface, redis *api.Redis) error {
+func ValidateRedis(client kubernetes.Interface, extClient cs.Interface, redis *api.Redis) error {
 	if redis.Spec.Version == "" {
 		return errors.New(`'spec.version' is missing`)
 	}
-	if _, err := extClient.RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{}); err != nil {
+	if _, err := extClient.CatalogV1alpha1().RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{}); err != nil {
 		return err
 	}
 
+	if redis.Spec.Mode != api.RedisModeStandalone && redis.Spec.Mode != api.RedisModeCluster {
+		return fmt.Errorf(`spec.mode "%v" invalid. Value must be one of "%v" or "%v"`,
+			redis.Spec.Mode, api.RedisModeStandalone, api.RedisModeCluster)
+	}
+
+	//if redis.Spec.Mode == api.RedisModeCluster && redis.Spec.Cluster == nil {
+	//	return fmt.Errorf(`spec.cluster "%v" invalid. It is required.`, redis.Spec.Cluster)
+	//}
+
+	//if redis.Spec.Mode == api.RedisModeCluster &&
+	//	(redis.Spec.Cluster.Replicas == nil || *redis.Spec.Cluster.Replicas < 0) {
+	//	return fmt.Errorf(`spec.cluster.replicationFactor "%v" invalid. Value must be >= 0`, redis.Spec.Cluster.Master)
+	//}
 	if redis.Spec.Mode == api.RedisModeCluster && *redis.Spec.Cluster.Replicas < 0 {
 		return fmt.Errorf(`spec.cluster.replicationFactor "%v" invalid. Value must be >= 0`, redis.Spec.Cluster.Master)
 	}
@@ -165,9 +177,9 @@ func ValidateRedis(client kubernetes.Interface, extClient kubedbv1alpha1.KubedbV
 	return nil
 }
 
-func matchWithDormantDatabase(extClient kubedbv1alpha1.KubedbV1alpha1Interface, redis *api.Redis) error {
+func matchWithDormantDatabase(extClient cs.Interface, redis *api.Redis) error {
 	// Check if DormantDatabase exists or not
-	dormantDb, err := extClient.DormantDatabases(redis.Namespace).Get(redis.Name, metav1.GetOptions{})
+	dormantDb, err := extClient.KubedbV1alpha1().DormantDatabases(redis.Namespace).Get(redis.Name, metav1.GetOptions{})
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			return err
@@ -184,9 +196,6 @@ func matchWithDormantDatabase(extClient kubedbv1alpha1.KubedbV1alpha1Interface, 
 	drmnOriginSpec := dormantDb.Spec.Origin.Spec.Redis
 	drmnOriginSpec.SetDefaults()
 	originalSpec := redis.Spec
-
-	// Skip checking doNotPause
-	drmnOriginSpec.DoNotPause = originalSpec.DoNotPause
 
 	// Skip checking UpdateStrategy
 	drmnOriginSpec.UpdateStrategy = originalSpec.UpdateStrategy

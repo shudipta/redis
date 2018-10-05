@@ -60,7 +60,7 @@ func (c *Controller) ensureRedisConfig(redis *api.Redis) error {
 		}
 
 		redis.Spec.ConfigSource = &core.VolumeSource{}
-		rd, _, err := kutildb.PatchRedis(c.ExtClient, redis, func(in *api.Redis) *api.Redis {
+		rd, _, err := kutildb.PatchRedis(c.ExtClient.KubedbV1alpha1(), redis, func(in *api.Redis) *api.Redis {
 			in.Spec.ConfigSource = &core.VolumeSource{
 				ConfigMap: &core.ConfigMapVolumeSource{
 					LocalObjectReference: core.LocalObjectReference{

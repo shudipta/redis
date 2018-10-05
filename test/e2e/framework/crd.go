@@ -13,12 +13,12 @@ func (f *Framework) EventuallyCRD() GomegaAsyncAssertion {
 	return Eventually(
 		func() error {
 			// Check Redis TPR
-			if _, err := f.extClient.Redises(core.NamespaceAll).List(metav1.ListOptions{}); err != nil {
+			if _, err := f.extClient.KubedbV1alpha1().Redises(core.NamespaceAll).List(metav1.ListOptions{}); err != nil {
 				return errors.New("CRD Redis is not ready")
 			}
 
 			// Check DormantDatabases TPR
-			if _, err := f.extClient.DormantDatabases(core.NamespaceAll).List(metav1.ListOptions{}); err != nil {
+			if _, err := f.extClient.KubedbV1alpha1().DormantDatabases(core.NamespaceAll).List(metav1.ListOptions{}); err != nil {
 				return errors.New("CRD DormantDatabase is not ready")
 			}
 

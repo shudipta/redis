@@ -9,6 +9,6 @@ FROM redis:4.0.11-alpine
 
 RUN mkdir -p /conf
 COPY fix-ip.sh /conf/fix-ip.sh
-ENTRYPOINT ["/conf/fix-ip.sh"]
+# ENTRYPOINT ["/conf/fix-ip.sh"]
 
-CMD ["redis-server"]
+CMD ["/conf/fix-ip.sh", "redis-server"]

@@ -28,7 +28,8 @@ func (c *Controller) waitUntilRedisClusterConfigured(redis *api.Redis) error {
 		}
 
 		rdClient := rd.NewClient(&rd.Options{
-			Addr: fmt.Sprintf("%s:6379", pod.Status.PodIP),
+			//Addr: fmt.Sprintf("%s:6379", pod.Status.PodIP),
+			Addr: fmt.Sprintf("127.0.0.1:8000", pod.Status.PodIP),
 		})
 
 		slots, err := rdClient.ClusterSlots().Result()

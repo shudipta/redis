@@ -22,6 +22,6 @@
 
 ### SEE ALSO
 
-* [rd-operator run](rd-operator_run.md)	 - Launch Redis server
+* [rd-operator run](rd-operator_run.md)	 - Launch Redis operator
 * [rd-operator version](rd-operator_version.md)	 - Prints binary version number.
 
