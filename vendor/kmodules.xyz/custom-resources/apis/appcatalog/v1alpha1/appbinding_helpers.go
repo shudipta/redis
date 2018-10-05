@@ -3,10 +3,9 @@ package v1alpha1
 import (
 	crdutils "github.com/appscode/kutil/apiextensions/v1beta1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"kmodules.xyz/custom-resources/apis"
 )
 
-func (p App) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (p AppBinding) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crdutils.NewCustomResourceDefinition(crdutils.Config{
 		Group:         SchemeGroupVersion.Group,
 		Plural:        ResourceApps,
@@ -24,7 +23,7 @@ func (p App) CustomResourceDefinition() *apiextensions.CustomResourceDefinition 
 		Labels: crdutils.Labels{
 			LabelsMap: map[string]string{"app": "catalog"},
 		},
-		SpecDefinitionName:      "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.App",
+		SpecDefinitionName:      "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.AppBinding",
 		EnableValidation:        true,
 		GetOpenAPIDefinitions:   GetOpenAPIDefinitions,
 		EnableStatusSubresource: false,
@@ -40,5 +39,5 @@ func (p App) CustomResourceDefinition() *apiextensions.CustomResourceDefinition 
 				JSONPath: ".metadata.creationTimestamp",
 			},
 		},
-	}, apis.SetNameSchema)
+	})
 }
